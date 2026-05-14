@@ -1,0 +1,71 @@
+{
+  "name": "one-screen-scale",
+  "version": "1.0.0",
+  "description": "Transform:scale 实现的一屏自适应方案。框架无关核心 + Vue/React 开箱即用",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/request-stack/one-screen-scale.git"
+  },
+  "type": "module",
+  "main": "dist/index.cjs.js",
+  "module": "dist/index.esm.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.esm.js",
+      "require": "./dist/index.cjs.js"
+    },
+    "./react": {
+      "types": "./dist/react.d.ts",
+      "import": "./dist/react.esm.js",
+      "require": "./dist/react.cjs.js"
+    }
+  },
+  "files": [
+    "dist",
+    "src",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "rollup -c && node -e \"var f=require('fs');f.copyFileSync('src/index.d.ts','dist/index.d.ts');f.copyFileSync('src/react.d.ts','dist/react.d.ts')\"",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "keywords": [
+    "one-screen",
+    "adaptive-scale",
+    "responsive",
+    "viewport",
+    "transform-scale",
+    "fit-screen",
+    "h5-scale",
+    "vue3",
+    "react",
+    "auto-scale"
+  ],
+  "author": "李港",
+  "license": "MIT",
+  "peerDependencies": {
+    "vue": "^3.0.0",
+    "react": ">=16.8.0"
+  },
+  "peerDependenciesMeta": {
+    "vue": {
+      "optional": true
+    },
+    "react": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@rollup/plugin-commonjs": "^24.0.0",
+    "@rollup/plugin-node-resolve": "^15.0.0",
+    "@rollup/plugin-terser": "^0.4.0",
+    "jsdom": "^29.0.1",
+    "rollup": "^3.0.0",
+    "vitest": "^1.0.0"
+  },
+  "dependencies": {}
+}
