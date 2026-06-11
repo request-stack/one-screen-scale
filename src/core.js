@@ -27,18 +27,20 @@ export function calculateScale({
   targetHeight = (typeof window !== 'undefined' ? window.innerHeight : 1080),
   mode = 'contain',
   visualWidth = 450,     // fixed-width 模式下的目标视觉宽度
-  screenWidth = (typeof window !== 'undefined' ? window.screen.width : 1920),     // fixed-width 模式下的设备屏幕宽度
+  // screenWidth = (typeof window !== 'undefined' ? window.screen.width : 1920),     // fixed-width 模式下的设备屏幕宽度
 }) {
   if (!sourceWidth || !sourceHeight || sourceWidth <= 0 || sourceHeight <= 0) return 1
 
   let scale
 
   if (mode === 'fixed-width') {
-    if(screenWidth < visualWidth){
-      scale = 1
-    }else{
-      scale = visualWidth / Math.max(targetWidth, screenWidth)
-    }
+    // if(screenWidth < visualWidth){
+    //   scale = 1
+    // }else{
+    //   scale = visualWidth / Math.max(targetWidth, screenWidth)
+    // }
+    // 只用视口宽：视口比目标宽才缩小，否则 1:1（保持清晰）
+    scale = targetWidth > visualWidth ? visualWidth / targetWidth : 1
   } else {
     const sx = targetWidth / sourceWidth
     const sy = targetHeight / sourceHeight
@@ -107,7 +109,7 @@ export function createScaler(el, options = {}) {
   function compute() {
     const sw = target.offsetWidth
     const sh = target.offsetHeight
-    const tw = window.innerWidth
+    const tw = document.documentElement.clientWidth || window.innerWidth
     const th = window.innerHeight
 
     return calculateScale({
@@ -117,7 +119,7 @@ export function createScaler(el, options = {}) {
       targetHeight: th,
       mode,
       visualWidth,
-      screenWidth: window.screen.width
+      // screenWidth: window.screen.width
     })
   }
 
@@ -126,12 +128,14 @@ export function createScaler(el, options = {}) {
     if (next !== currentScale) {
       currentScale = next
       applyScale(target, next, origin)
+    }
 
-      // fixed-width 模式：反向补偿高度
-      if (mode === 'fixed-width' && next > 0) {
-        target.style.width = `${Math.max(window.innerWidth, window.screen.width)}px`
-        target.style.height = `${Math.round(window.innerHeight / next)}px`
-      }
+    // fixed-width 模式：反向补偿高度
+    if (mode === 'fixed-width' && next > 0) {
+      // target.style.width = `${Math.max(window.innerWidth, window.screen.width)}px`
+      const viewportWidth = document.documentElement.clientWidth || window.innerWidth
+      target.style.width = `${viewportWidth}px`
+      target.style.height = `${Math.round(window.innerHeight / next)}px`
     }
     return currentScale
   }

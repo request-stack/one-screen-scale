@@ -15,27 +15,24 @@ describe('calculateScale', () => {
       targetWidth: 375,
       targetHeight: 800,
       mode: 'contain',
-      minScale: 0.1,
-      maxScale: 10
     })
     // scaleX=0.5, scaleY=0.8 → min=0.5
     expect(s).toBeCloseTo(0.5, 2)
   })
 
-  it('contain mode: clamped by minScale', () => {
+  it('contain mode: uses scaleY when it is smaller', () => {
     const s = calculateScale({
       sourceWidth: 750,
       sourceHeight: 1000,
-      targetWidth: 200,
-      targetHeight: 300,
+      targetWidth: 750,
+      targetHeight: 500,
       mode: 'contain',
-      minScale: 0.5,
-      maxScale: 10
     })
-    expect(s).toBe(0.5)
+    // scaleX=1, scaleY=0.5 → min=0.5
+    expect(s).toBeCloseTo(0.5, 2)
   })
 
-  it('fixed-width mode: scale = visualWidth / targetWidth', () => {
+  it('fixed-width mode: scale = visualWidth / targetWidth when viewport is wider', () => {
     const s = calculateScale({
       sourceWidth: 750,
       sourceHeight: 1000,
@@ -43,24 +40,20 @@ describe('calculateScale', () => {
       targetHeight: 1080,
       mode: 'fixed-width',
       visualWidth: 450,
-      minScale: 0.1,
-      maxScale: 10
     })
     expect(s).toBeCloseTo(450 / 1920, 4)
   })
 
-  it('fixed-width mode: clamped by maxScale', () => {
+  it('fixed-width mode: scale = 1 when viewport is narrower than visualWidth', () => {
     const s = calculateScale({
       sourceWidth: 750,
       sourceHeight: 1000,
-      targetWidth: 1920,
-      targetHeight: 1080,
+      targetWidth: 375,
+      targetHeight: 800,
       mode: 'fixed-width',
       visualWidth: 450,
-      minScale: 0.1,
-      maxScale: 0.2
     })
-    expect(s).toBe(0.2)
+    expect(s).toBe(1)
   })
 })
 
@@ -92,7 +85,7 @@ describe('createScaler', () => {
     el.style.height = '500px'
     document.body.appendChild(el)
 
-    const scaler = createScaler(el, { mode: 'contain', autoResize: false, minScale: 0.1, maxScale: 10 })
+    const scaler = createScaler(el, { mode: 'contain', autoResize: false })
     const s = scaler.start()
     expect(typeof s).toBe('number')
     expect(s).toBeGreaterThan(0)

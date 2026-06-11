@@ -7,7 +7,7 @@ export interface ScaleOptions {
   targetHeight?: number
   mode?: 'contain' | 'fixed-width'
   visualWidth?: number
-  screenWidth?: number
+  // screenWidth?: number
 }
 
 export interface ScalerOptions {

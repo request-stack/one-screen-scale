@@ -9,6 +9,12 @@
 - ⚡ **指令 / Hook 开箱即用** — Vue 3 和 React 都支持
 - 🖥️ **Canvas 友好** — 通过反缩放补偿，ECharts 等 canvas 内容保持清晰
 
+## 主要面向场景
+
+- 使用了pxToViewport autoprefixer 或者类似的移动端自适应插件的h5网页
+- 可以使用该插件在任何设备实现一屏自适应，如果是固定高度(一屏)则使用contain模式，如果是滚动高度则使用fixed-width模式
+- 同时在pc端可以正常自适应显示同一个页面，从而无需再开发pc端对应页面
+
 ## 安装
 
 ```bash
@@ -90,7 +96,7 @@ scaler.stop()
 | 模式 | 算法 | 效果 | 场景 |
 |------|------|------|------|
 | `contain`（默认） | `min(scaleX, scaleY)` | 内容完整可见，不溢出 | 活动页、落地页 |
-| `fixed-width` | `visualWidth / max(innerWidth, screenWidth)` | 固定手机观感宽度，可滚动 | 规则页、长表单 |
+| `fixed-width` | `visualWidth / innerWidth`（视口 ≤ visualWidth 时为 1） | 固定手机观感宽度，可滚动 | 规则页、长表单 |
 
 ```js
 // contain（默认）
