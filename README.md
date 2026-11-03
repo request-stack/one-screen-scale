@@ -6,14 +6,68 @@
 
 - 🎯 **真正的"一屏"** — 内容不溢出、不滚动（contain 模式）
 - 🧩 **零依赖核心** — 纯 JS，不绑定任何框架
-- ⚡ **指令 / Hook 开箱即用** — Vue 3 和 React 都支持
+- ⚡ **指令 / Hook 开箱即用** — Vue 3 和 React 都支持；挂载时自动注入基础宽高样式
 - 🖥️ **Canvas 友好** — 通过反缩放补偿，ECharts 等 canvas 内容保持清晰
 
 ## 主要面向场景
 
-- 使用了pxToViewport autoprefixer 或者类似的移动端自适应插件的h5网页
-- 可以使用该插件在任何设备实现一屏自适应，如果是固定高度(一屏)则使用contain模式，如果是滚动高度则使用fixed-width模式
-- 同时在pc端可以正常自适应显示同一个页面，从而无需再开发pc端对应页面
+面向已经用 **postcss-px-to-viewport**（或同类方案）做移动端适配的 H5 页面：
+
+| 模式 | 用途 | 效果 |
+|------|------|------|
+| `contain`（默认） | 活动页 / 一屏落地页 | 任意设备完整展示一屏；高屏左右留白；极小视口仍能看到完整页；**PC 与手机看到的是同一张 H5** |
+| `fixed-width` | 规则页 / 长表单 | 固定视觉宽度，内容可纵向滚动 |
+
+不必再单独开发一套 PC 页。
+
+## 页面怎么配合
+
+指令会**自动注入**下列基础样式（可用 `injectBaseStyles: false` 关闭）：
+
+**contain — 一屏**
+
+```css
+width: 100vw;
+min-height: 100vh;
+min-height: 100dvh;
+```
+
+算法用元素的 `offsetWidth / offsetHeight` 和视口比：`scale = min(视口宽/内容宽, 视口高/内容高)`。  
+所以 **内容高度必须能被正确量出来**，PC 上（px→vw 后）通常会高于视口，scale 才会小于 1。
+
+### ⚠️ contain 使用禁忌（否则 PC 看起来像「没缩放」）
+
+1. **禁止用 `height: 100vh` / `100dvh` 锁死根节点高度**  
+   只能用插件注入的 **`min-height`**。写成 `height: 100vh` 后，`offsetHeight ≈ 视口高` → `scaleY ≈ 1` → 整页几乎不缩。
+
+2. **禁止把撑高页面的大图 / 主视觉设为 `position: absolute`（或脱离文档流）**  
+   绝对定位不参与父级高度计算。常见错误：棋盘/海报 `position: absolute` + 外层 `flex: 1; min-height: 0` 去「填满一屏」→ 根节点高度仍被锁在视口上。  
+   **正确做法：大图留在文档流里**（`position: relative` / 默认 static，`width: 100%; height: auto`），用图片自身比例撑开整页高度。
+
+3. **避免「整页 flex 填视口、子项 `flex:1; min-height:0`」当唯一高度来源**  
+   那会把布局收成刚好一屏，同样量不出「内容高于视口」。一屏裁切用 `overflow: hidden` 即可，高度仍交给内容。
+
+**对照**
+
+| 写法 | 结果 |
+|------|------|
+| `min-height: 100vh` + 大图在文档流 | ✅ PC/手机构图一致，contain 正常缩小 |
+| `height: 100vh` 锁死 | ❌ PC scale≈1 |
+| 大图 `absolute` + flex 填满视口 | ❌ 量不到真实内容高，PC 不缩 |
+
+图片异步加载导致偶发量矮：插件默认 `observeContent: true`，会在尺寸变化后自动 `refresh`。
+
+**fixed-width — 长滚动**
+
+暂不自动注入基础 CSS；`width` / `height` 由 `refresh()` 行内补偿写入。业务自己管内部滚动等。  
+滚动条被 scale 变细时，可用根节点上的 `--one-screen-inverse-scale` 做反缩放，例如：
+
+```css
+/* 若项目用了 px-to-viewport，这里要用大写 Px，避免被转成 vw 后再 ×反缩放过粗 */
+.scroll::-webkit-scrollbar {
+  width: calc(6Px * var(--one-screen-inverse-scale, 1));
+}
+```
 
 ## 安装
 
@@ -27,6 +81,7 @@ npm install one-screen-scale
 
 ```vue
 <template>
+  <!-- 一屏：自动注入 min-height:100vh + width:100vw -->
   <div v-fit-screen class="page">
     <h1>活动标题</h1>
     <p>页面内容...</p>
@@ -38,24 +93,61 @@ import { vFitScreen } from 'one-screen-scale'
 </script>
 ```
 
-### Vue 3 — Composable（需要 scale 值，如 ECharts 补偿）
+```vue
+<template>
+  <!-- 长滚动 -->
+  <div v-fit-screen="{ mode: 'fixed-width' }" class="rules-page">
+    <header>...</header>
+    <main class="rules-body"><!-- overflow-y: auto --></main>
+  </div>
+</template>
+```
+
+### Vue 3 — `v-compensate`（第三方组件反缩放）
+
+页面 `transform: scale` 后，ECharts 等常会尺寸偏小或量错。在槽位内再包一层即可（**JS 行内**写入）：
+
+`width/height: 100% * pageScale` + `transform: scale(inverse)`，scale 读祖先 `--one-screen-scale`。
 
 ```vue
 <template>
-  <div ref="pageRef" class="page">
-    <div :style="{ transform: `scale(${inverseScale})` }">
-      <ECharts />
+  <div v-fit-screen class="page">
+    <div class="chart-slot">
+      <div v-compensate.resize-canvas class="chart-inner">
+        <div ref="chartEl" class="chart"></div>
+      </div>
     </div>
   </div>
 </template>
 
+<script setup>
+import * as echarts from 'echarts'
+import { vFitScreen, vCompensate, setCompensateEcharts } from 'one-screen-scale'
+
+// 可选：全局注入 echarts，供 resizeCanvas 自动探测
+setCompensateEcharts(echarts)
+</script>
+```
+
+```css
+.chart-slot { width: 100%; height: 300px; overflow: hidden; } /* 设计稿槽位，需明确宽高 */
+.chart-inner, .chart { width: 100%; height: 100%; }
+```
+
+> **适用**：任意被页面 scale 搞小的区域，尤其 **canvas**——先反缩放，再用 `offsetWidth` 量盒（勿用 `getBoundingClientRect`）。  
+> **`{ resizeCanvas: true }` / `.resize-canvas`**：补偿后通知子树 canvas 重绘（探测 ECharts / Chart.js，并在每个 `<canvas>` 上派发 `one-screen-scale-canvas-resize`）。  
+> 只抵消页面 `v-fit-screen` 的 scale；**不处理**浏览器 Ctrl+/-。  
+> **不适用**：`el-slider` 等依赖指针坐标 / 易被 overflow 裁切的控件。
+
+### Vue 3 — Composable（需要拿到 scale 数值时）
+
+```vue
 <script setup>
 import { ref } from 'vue'
 import { useFitScreen } from 'one-screen-scale'
 
 const pageRef = ref(null)
 const { scale, inverseScale } = useFitScreen(pageRef)
-// inverseScale 可用于子元素反缩放补偿
 </script>
 ```
 
@@ -63,32 +155,43 @@ const { scale, inverseScale } = useFitScreen(pageRef)
 
 ```jsx
 import { useRef } from 'react'
-import { useFitScreen } from 'one-screen-scale/react'
+import { useFitScreen, useCompensate } from 'one-screen-scale/react'
 
 function App() {
   const pageRef = useRef(null)
+  const chartInnerRef = useRef(null)
   const { scale, inverseScale } = useFitScreen(pageRef)
+  // 需要通知子树 canvas 重绘时加 { resizeCanvas: true }
+  useCompensate(chartInnerRef, { resizeCanvas: true })
 
   return (
     <div ref={pageRef} className="page">
-      <h1>活动标题</h1>
+      <div className="chart-slot" style={{ width: 350, height: 300 }}>
+        <div ref={chartInnerRef} style={{ width: '100%', height: '100%' }}>
+          <div id="chart" style={{ width: '100%', height: '100%' }} />
+        </div>
+      </div>
     </div>
   )
 }
 ```
 
-### 纯 JS / jQuery
+### 纯 JS / HTML
 
 ```js
-import { createScaler } from 'one-screen-scale'
+import { createScaler, createCompensate } from 'one-screen-scale'
 
-const scaler = createScaler(document.querySelector('.page'), {
-  mode: 'contain'
-})
+const page = document.querySelector('.page')
+const scaler = createScaler(page, { mode: 'contain' })
 scaler.start()
 
+// 第三方组件反缩放（对应 Vue v-compensate / React useCompensate）
+const inner = document.querySelector('.chart-inner')
+const compensate = createCompensate(inner, { resizeCanvas: true })
+
 // 销毁
-scaler.stop()
+compensate.stop()
+scaler.stop() // 移除注入的 class，并还原本库写过的 inline 样式
 ```
 
 ## 两种模式
@@ -104,6 +207,9 @@ createScaler(el)
 
 // fixed-width
 createScaler(el, { mode: 'fixed-width', visualWidth: 450 })
+
+// 自己写根节点宽高时关闭注入
+createScaler(el, { injectBaseStyles: false })
 ```
 
 ## API
@@ -115,20 +221,37 @@ calculateScale(options: ScaleOptions): number
 
 applyScale(el: Element | string, scale: number, origin?: string): void
 
-getPageScale(el?: Element | string): number        // 默认查 .share-page
-getInverseScale(el?: Element | string): number     // 1 / getPageScale()
+getPageScale(el?: Element | string): number
+getInverseScale(el?: Element | string): number
 
 createScaler(el: Element | string, options?: ScalerOptions): ScalerInstance
+
+ensureBaseStyleSheet(): HTMLStyleElement | null
+applyBaseStyles(el: HTMLElement, mode?: 'contain' | 'fixed-width'): string | null
+removeBaseStyles(el: HTMLElement): void
+applyCompensateStyles(el: HTMLElement): string | null
+removeCompensateStyles(el: HTMLElement): void
+
+SCALE_CHANGE_EVENT // 'one-screen-scale-change'，页面 scale 变化时 window 上触发
+
+// 组件反缩放（仅抵消页面 scale）
+resolvePageScale(fromEl?): number
+applyCompensateTransform(el): { scale, inverseScale }
+clearCompensateTransform(el): void
+createCompensate(el, options?: CompensateOptions): { refresh, stop }
+resizeCanvasUnder(el, echartsLib?): number
+setCompensateEcharts(echarts): void   // 可选，供 resizeCanvas 探测 ECharts
+CANVAS_RESIZE_EVENT                   // 'one-screen-scale-canvas-resize'
 ```
 
 ### ScalerInstance
 
 ```ts
 {
-  start(): number    // 启动缩放 + 监听 resize，返回当前 scale
-  stop(): void       // 停止监听
+  start(): number    // 注入基础样式 + 启动缩放 + 监听 resize
+  stop(): void       // 停止监听，移除注入 class，还原 inline
   refresh(): number  // 手动重算
-  getScale(): number // 获取当前 scale
+  getScale(): number
 }
 ```
 
@@ -140,14 +263,16 @@ createScaler(el: Element | string, options?: ScalerOptions): ScalerInstance
 | `visualWidth` | `number` | `450` | fixed-width 模式目标视觉宽度 |
 | `origin` | `string` | `'top center'` | transform-origin |
 | `autoResize` | `boolean` | `true` | 自动监听窗口 resize |
+| `injectBaseStyles` | `boolean` | `true` | 是否自动注入模式所需宽高样式 |
+| `observeContent` | `boolean` | `true` | 内容尺寸变化（如图片加载撑高）时自动重算，避免偶发 scale 偏大 |
 
 ### Vue
 
 ```ts
-// 指令
 vFitScreen: Directive<HTMLElement, ScalerOptions>
+vCompensate: Directive<HTMLElement>       // 第三方反缩放
+vFitCompensate: Directive<HTMLElement>  // 同上别名
 
-// Composable
 useFitScreen(ref: Ref, options?: ScalerOptions): {
   scale: Ref<number>
   inverseScale: Ref<number>
@@ -155,31 +280,43 @@ useFitScreen(ref: Ref, options?: ScalerOptions): {
 }
 ```
 
-### React
+### React（`one-screen-scale/react`）
 
 ```ts
-import { useFitScreen } from 'one-screen-scale/react'
-
-useFitScreen(ref: RefObject, options?: ScalerOptions): {
-  scale: number
-  inverseScale: number
-  refresh: () => void
-}
+useFitScreen(ref, options?: ScalerOptions): { scale, inverseScale, refresh }
+useCompensate(ref, options?: CompensateOptions): { refresh }  // 对应 v-compensate
 ```
 
-## Canvas / ECharts 模糊问题
+### CompensateOptions
 
-CSS `transform: scale()` 缩放的是位图，canvas 内容会变糊。解决办法：对 canvas 容器做反缩放补偿。
+| 参数 | 类型 | 默认值 | 说明 |
+|------|------|--------|------|
+| `resizeCanvas` | `boolean` | — | **可选**。补偿后通知子树 canvas 重绘 |
+| `onRefresh` | `(detail) => void` | — | 每次写入反缩放后回调 |
+| `echarts` / `echartsLib` | — | — | 旧名，等价于开启 `resizeCanvas`；对象形式可传 echarts 模块 |
+
+也可 `setCompensateEcharts(echarts)` 全局注入，方便自动探测。
+
+## Canvas 模糊 / 偏小
+
+CSS `transform: scale()` 会把 **所有 canvas** 一起缩小。先反缩放，再重绘：
+
+| 环境 | 反缩放 | 通知 canvas 重绘 |
+|------|--------|------------------|
+| Vue | `v-compensate` | `v-compensate.resize-canvas` |
+| React | `useCompensate(ref)` | `useCompensate(ref, { resizeCanvas: true })` |
+| 纯 JS | `createCompensate(el)` | `createCompensate(el, { resizeCanvas: true })` |
+
+`resizeCanvas` 会：探测已加载的 ECharts / Chart.js；并在每个 `<canvas>` 上派发事件，自研库可监听：
 
 ```js
-// Vue composable 示例
-const { inverseScale } = useFitScreen(pageRef)
-
-// 在包裹层上应用反缩放
-// <div :style="{ transform: `scale(${inverseScale})`, transformOrigin: 'top left' }">
+canvas.addEventListener('one-screen-scale-canvas-resize', (e) => {
+  const { width, height } = e.detail
+  myChart.resize(width, height)
+})
 ```
 
-反缩放后 canvas 以原生分辨率渲染，保持清晰。详情见 [Canvas 缩放补偿指南](https://github.com/nicepkg/one-screen-scale)。
+手写等价：`width/height: 100% * pageScale` + `transform: scale(1/pageScale)`，量尺寸用 `offsetWidth`。
 
 ## License
 

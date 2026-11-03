@@ -3,33 +3,35 @@
  *   useFitScreen(ref, options) → { scale, inverseScale, refresh }
  */
 import { ref, onMounted, onUnmounted, watch } from 'vue'
-import { createScaler, getInverseScale } from './core.js'
+import { createScaler, SCALE_CHANGE_EVENT } from './core.js'
 
 export function useFitScreen(targetRef, options = {}) {
   const scale = ref(1)
   const inverseScale = ref(1)
 
   let scaler = null
-  let onResize = null
+  let onScale = null
 
   function setup(el) {
     if (!el) return
     scaler = createScaler(el, options)
     const s = scaler.start()
     scale.value = s
-    inverseScale.value = getInverseScale(el)
+    inverseScale.value = s > 0 ? 1 / s : 1
 
-    onResize = () => {
-      scale.value = scaler?.getScale?.() ?? 1
-      inverseScale.value = getInverseScale(el)
+    // 图片加载等导致的重算不经过 window.resize，跟页面缩放事件走
+    onScale = (event) => {
+      if (event.detail?.el !== el) return
+      scale.value = event.detail.scale
+      inverseScale.value = event.detail.inverseScale
     }
-    window.addEventListener('resize', onResize)
+    window.addEventListener(SCALE_CHANGE_EVENT, onScale)
   }
 
   function teardown() {
-    if (onResize) {
-      window.removeEventListener('resize', onResize)
-      onResize = null
+    if (onScale) {
+      window.removeEventListener(SCALE_CHANGE_EVENT, onScale)
+      onScale = null
     }
     scaler?.stop()
     scaler = null
@@ -60,7 +62,7 @@ export function useFitScreen(targetRef, options = {}) {
     if (!el || !scaler) return
     const s = scaler.refresh()
     scale.value = s
-    inverseScale.value = getInverseScale(el)
+    inverseScale.value = s > 0 ? 1 / s : 1
   }
 
   return { scale, inverseScale, refresh }
