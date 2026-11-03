@@ -132,6 +132,9 @@ describe('createScaler', () => {
     scaler.start()
 
     expect(el.classList.contains(BASE_CLASS['fixed-width'])).toBe(true)
+    const css = document.getElementById(STYLE_ELEMENT_ID).textContent
+    expect(css).toContain('one-screen-scale--fixed-width *::-webkit-scrollbar')
+    expect(css).toContain('calc(6px * var(--one-screen-inverse-scale, 1))')
 
     scaler.stop()
     expect(el.classList.contains(BASE_CLASS['fixed-width'])).toBe(false)

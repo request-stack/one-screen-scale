@@ -59,15 +59,56 @@ min-height: 100dvh;
 
 **fixed-width — 长滚动**
 
-暂不自动注入基础 CSS；`width` / `height` 由 `refresh()` 行内补偿写入。业务自己管内部滚动等。  
-滚动条被 scale 变细时，可用根节点上的 `--one-screen-inverse-scale` 做反缩放，例如：
+#### 什么时候用
 
-```css
-/* 若项目用了 px-to-viewport，这里要用大写 Px，避免被转成 vw 后再 ×反缩放过粗 */
-.scroll::-webkit-scrollbar {
-  width: calc(6Px * var(--one-screen-inverse-scale, 1));
+规则页、协议、长表单这种内容比一屏高、需要上下滚动的页面。手机上看是正常宽度；PC 上视口更宽时，只把页面缩到一条手机宽（默认视觉宽 450），两边留白，不要把字拉得很大。
+
+`contain` 不适合这种页：它要整页塞进一屏，长文会被缩得很小。
+
+#### 插件做了什么，页面还要做什么
+
+指令做两件事：
+
+1. 按视口把根节点缩小，并把根节点的宽高写进行内样式。
+2. 滚动条会跟着缩小。Chrome 里只把滚动条改窄、不写滑块颜色，滑块会直接消失。所以指令会给根节点和里面的滚动区域一起补上宽度和滑块颜色，看起来大约 6px。**滚动条样式不用再写。**
+
+指令不知道标题要不要钉在上面、正文从哪里开始滚。这两件事是页面布局，必须自己写。只加 `v-fit-screen="{ mode: 'fixed-width' }"`、不写下边的结构，页面不会滚。
+
+#### 怎么写
+
+根节点做成纵向弹性盒，自己不滚动。标题高度固定。剩下的高度全部交给滚动区，由滚动区 `overflow-y: auto` 滚动。
+
+```vue
+<template>
+  <div v-fit-screen="{ mode: 'fixed-width' }" class="rules-page">
+    <header class="rules-header">标题</header>
+    <div class="rules-scroll">
+      <main>很长的正文...</main>
+    </div>
+  </div>
+</template>
+
+<style scoped>
+.rules-page {
+  display: flex;            /* 纵向排列标题和正文 */
+  flex-direction: column;
+  overflow: hidden;         /* 整页不滚，避免和内部滚动条抢 */
 }
+
+.rules-header {
+  flex-shrink: 0;           /* 标题保持自己的高度，不被正文挤扁 */
+}
+
+.rules-scroll {
+  flex: 1;                  /* 拿走标题下面的全部剩余高度 */
+  min-height: 0;            /* 允许它比内容矮，否则 flex 子项不会出现滚动 */
+  overflow-y: auto;         /* 正文超出这块区域时，在这里面滚 */
+  overflow-x: hidden;
+}
+</style>
 ```
+
+背景色、圆角按设计另写。三行滚动布局（`flex: 1`、`min-height: 0`、`overflow-y: auto`）不能省。
 
 ## 安装
 
@@ -93,15 +134,7 @@ import { vFitScreen } from 'one-screen-scale'
 </script>
 ```
 
-```vue
-<template>
-  <!-- 长滚动 -->
-  <div v-fit-screen="{ mode: 'fixed-width' }" class="rules-page">
-    <header>...</header>
-    <main class="rules-body"><!-- overflow-y: auto --></main>
-  </div>
-</template>
-```
+长滚动的完整结构见上面「fixed-width — 长滚动」：根节点 `display: flex; flex-direction: column; overflow: hidden`，滚动区 `flex: 1; min-height: 0; overflow-y: auto`。只写指令、不写这几行，页面不会滚。
 
 ### Vue 3 — `v-compensate`（第三方组件反缩放）
 

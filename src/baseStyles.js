@@ -4,7 +4,7 @@
  * 前提：页面用了 postcss-px-to-viewport（或同类）把设计稿 px 转成 vw。
  *
  * - contain：宽拉满视口 + 最小一屏高，高度由内容撑开
- * - fixed-width：宽高由 refresh 行内补偿，暂不注入
+ * - fixed-width：宽高由 refresh 行内补偿；滚动条宽度按反比自动补回，视觉约 6px
  * - compensate：第三方组件反缩放（抵消页面 scale，ECharts / Element Plus 等）
  */
 
@@ -22,8 +22,24 @@ const BASE_CSS = `
   min-height: 100vh;
   min-height: 100dvh;
 }
-/* fixed-width：占位 class，样式先不注入 */
-.${BASE_CLASS['fixed-width']} {
+/*
+ * fixed-width 整页被 scale 后，滚动条会一起变细。
+ * WebKit 只要改了宽度却不写滑块，滑块就会消失，所以宽度和颜色一起注入。
+ * 这段不经过业务的 px-to-viewport。根节点和内部滚动区域都覆盖。
+ */
+.${BASE_CLASS['fixed-width']}::-webkit-scrollbar,
+.${BASE_CLASS['fixed-width']} *::-webkit-scrollbar {
+  width: calc(6px * var(--one-screen-inverse-scale, 1));
+  height: calc(6px * var(--one-screen-inverse-scale, 1));
+}
+.${BASE_CLASS['fixed-width']}::-webkit-scrollbar-thumb,
+.${BASE_CLASS['fixed-width']} *::-webkit-scrollbar-thumb {
+  background: rgba(18, 51, 105, 0.28);
+  border-radius: 999px;
+}
+.${BASE_CLASS['fixed-width']}::-webkit-scrollbar-track,
+.${BASE_CLASS['fixed-width']} *::-webkit-scrollbar-track {
+  background: transparent;
 }
 /*
  * 纯 CSS 反缩放（可选）。v-compensate 指令已改为 JS 行内写入同一公式，更稳。

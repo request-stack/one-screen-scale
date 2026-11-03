@@ -1,6 +1,6 @@
 {
   "name": "one-screen-scale",
-  "version": "1.3.0",
+  "version": "1.3.1",
   "description": "Transform:scale 实现的一屏自适应方案。框架无关核心 + Vue/React 开箱即用；指令自动注入模式基础宽高样式",
   "repository": {
     "type": "git",
